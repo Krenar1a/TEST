@@ -18,6 +18,7 @@ bill_scraper = BillScraperService()
 
 class BillResponse(BaseModel):
     id: str
+    identifier: Optional[str] = None
     title: str
     summary: Optional[str] = None
     status: Optional[str] = None
@@ -171,16 +172,26 @@ def get_bills(
             # Convert stored bills to response format
             for stored_bill in stored_bills:
                 try:
+                    # Prefer first_action_date, otherwise updated_at, otherwise created_at, otherwise empty string
+                    introduced_date = ""
+                    if hasattr(stored_bill, 'first_action_date') and stored_bill.first_action_date:
+                        introduced_date = stored_bill.first_action_date
+                    elif hasattr(stored_bill, 'updated_at') and stored_bill.updated_at:
+                        introduced_date = stored_bill.updated_at.isoformat()
+                    elif hasattr(stored_bill, 'created_at') and stored_bill.created_at:
+                        introduced_date = stored_bill.created_at.isoformat()
+
                     bill = BillResponse(
                         id=stored_bill.bill_id,
+                        identifier=getattr(stored_bill, 'identifier', None),
                         title=stored_bill.title,
                         summary=stored_bill.summary,
                         status=stored_bill.status or "Unknown",
-                        chamber="California Legislature",  # Default since we don't store this
-                        introduced_date="",  # We don't store dates in bill_summary
+                        chamber="California Legislature",
+                        introduced_date=introduced_date,
                         last_action_date="",
                         last_action="",
-                        sponsors=[],  # We don't store sponsors in bill_summary
+                        sponsors=[],
                         actions=[]
                     )
                     bills.append(bill)

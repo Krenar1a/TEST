@@ -30,13 +30,13 @@ def get_stored_bills(db: Session, skip: int = 0, limit: int = 100, status: Optio
     """Get all bills with optional filtering and search"""
     query = db.query(BillSummary)
     
-    # Apply search filter
+    # Apply search filter (now only on title, summary, and identifier)
     if search:
         search_term = f"%{search}%"
         query = query.filter(
             BillSummary.title.ilike(search_term) |
             BillSummary.summary.ilike(search_term) |
-            BillSummary.bill_id.ilike(search_term)
+            BillSummary.identifier.ilike(search_term)
         )
     
     # Apply status filter
