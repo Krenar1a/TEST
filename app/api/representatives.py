@@ -81,7 +81,7 @@ async def get_representatives(
 
 
 @router.post("/", status_code=201)
-async def create_representative_record(
+def create_representative_record(
     representative_data: RepresentativeCreate, 
     db: Session = Depends(get_db)
 ):
@@ -103,7 +103,7 @@ async def create_representative_record(
 
 
 @router.delete("/{representative_id}")
-async def delete_representative_record(
+def delete_representative_record(
     representative_id: int, 
     hard_delete: bool = Query(False, description="If true, permanently delete; if false, soft delete"),
     db: Session = Depends(get_db)
@@ -139,7 +139,7 @@ async def delete_representative_record(
 
 
 @router.get("/stored", response_model=List[dict])
-async def list_stored_representatives(
+def list_stored_representatives(
     skip: int = Query(0, ge=0, description="Number of representatives to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Number of representatives to return"),
     level: Optional[str] = Query(None, description="Filter by government level (federal, state, local)"),

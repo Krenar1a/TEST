@@ -13,7 +13,7 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
     OpenAI = None
-    logging.warning("OpenAI library not available, using mock data")
+    logging.warning("OpenAI library not available")
 
 class OpenAIService:
     """Service class for OpenAI API interactions"""

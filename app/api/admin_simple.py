@@ -15,7 +15,7 @@ class AdminStatsResponse(BaseModel):
     api_keys_configured: dict
 
 @router.get("/stats", response_model=AdminStatsResponse)
-async def get_admin_stats(db: Session = Depends(get_db)):
+def get_admin_stats(db: Session = Depends(get_db)):
     """
     Get admin dashboard statistics using CRUD operations
     """
@@ -45,7 +45,7 @@ async def get_admin_stats(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/database")
-async def get_database_stats(db: Session = Depends(get_db)):
+def get_database_stats(db: Session = Depends(get_db)):
     """
     Get database management statistics using CRUD operations
     """
@@ -85,7 +85,7 @@ async def get_database_stats(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/clear-cache")
-async def clear_cache(request: dict, db: Session = Depends(get_db)):
+def clear_cache(request: dict, db: Session = Depends(get_db)):
     """
     Clear cached data using CRUD operations
     """
@@ -119,7 +119,7 @@ async def clear_cache(request: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/summaries/search")
-async def search_summaries(
+def search_summaries(
     q: str = "",
     skip: int = 0,
     limit: int = 20,

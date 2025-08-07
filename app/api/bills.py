@@ -51,56 +51,12 @@ class BillDetailResponse(BaseModel):
     actions: List[dict] = []
     full_text_url: Optional[str] = None
 
-@router.get("/simple-test")
-async def simple_test():
-    """Super simple test endpoint"""
-    print("SIMPLE TEST CALLED!!!")
-    return {"message": "Simple test works", "status": "success"}
-
-
-@router.get("/api-test")
-async def api_test():
-    """Direct API test endpoint"""
-    from app.services.openstates_api import OpenStatesAPI
-    api = OpenStatesAPI()
-    result = api.get_california_bills(per_page=2)
-    
-    return {
-        "message": "Direct API test",
-        "has_key": bool(api.api_key),
-        "result_type": str(type(result)),
-        "bills_found": len(result.get('results', [])) if isinstance(result, dict) else 0,
-        "sample_result": result
-    }
-
-@router.get("/test")
-async def test_endpoint():
-    """Simple test endpoint"""
-    return {"message": "Bills router is working!", "timestamp": "2025-07-21"}
-
-@router.get("/debug")
-async def debug_endpoint():
-    """Debug endpoint to test OpenStates API directly"""
-    try:
-        from app.services.openstates_api import OpenStatesAPI
-        api = OpenStatesAPI()
-        
-        result = api.get_california_bills(per_page=2)
-        
-        return {
-            "has_api_key": bool(api.api_key),
-            "api_key_preview": api.api_key[:20] + "..." if api.api_key else None,
-            "result_type": str(type(result)),
-            "result_keys": list(result.keys()) if isinstance(result, dict) else None,
-            "bills_count": len(result.get('results', [])) if isinstance(result, dict) else None,
-            "first_bill_title": result.get('results', [{}])[0].get('title') if isinstance(result, dict) and result.get('results') else None,
-            "full_result": result  # Include full result for debugging
-        }
-    except Exception as e:
-        return {"error": str(e), "error_type": str(type(e))}
+# ===============================
+# Main Bills API Endpoints
+# =============================== 
 
 @router.get("/detail/{bill_id}", response_model=BillDetailResponse)
-async def get_bill_detail(
+def get_bill_detail(
     bill_id: str,
     db: Session = Depends(get_db)
 ):
@@ -180,7 +136,7 @@ async def get_bill_detail(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/", response_model=dict)
-async def get_bills(
+def get_bills(
     search: Optional[str] = Query(None, description="Search query"),
     sort: str = Query("date", description="Sort by: date, chamber, status"),
     category: Optional[str] = Query(None, description="Filter by category"),
@@ -398,7 +354,7 @@ def get_latest_action_description(actions):
 
 
 @router.post("/", status_code=201)
-async def create_bill_summary(bill_data: BillCreate, db: Session = Depends(get_db)):
+def create_bill_summary(bill_data: BillCreate, db: Session = Depends(get_db)):
     """
     Create a new bill summary
     """
@@ -424,7 +380,7 @@ async def create_bill_summary(bill_data: BillCreate, db: Session = Depends(get_d
 
 
 @router.delete("/{bill_id}")
-async def delete_bill_summary(bill_id: str, db: Session = Depends(get_db)):
+def delete_bill_summary(bill_id: str, db: Session = Depends(get_db)):
     """
     Delete a bill summary by bill_id
     """
@@ -450,7 +406,7 @@ async def delete_bill_summary(bill_id: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/by-pk/{pk_id}")
-async def delete_bill_by_primary_key(pk_id: int, db: Session = Depends(get_db)):
+def delete_bill_by_primary_key(pk_id: int, db: Session = Depends(get_db)):
     """
     Delete a bill summary by primary key ID
     """
@@ -471,7 +427,7 @@ async def delete_bill_by_primary_key(pk_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/stored", response_model=List[dict])
-async def list_stored_bills(
+def list_stored_bills(
     skip: int = Query(0, ge=0, description="Number of bills to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Number of bills to return"),
     status: Optional[str] = Query(None, description="Filter by bill status"),
@@ -490,7 +446,7 @@ async def list_stored_bills(
 
 
 @router.get("/{bill_id}")
-async def get_bill_by_id(
+def get_bill_by_id(
     bill_id: str,
     db: Session = Depends(get_db)
 ):

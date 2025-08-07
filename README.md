@@ -50,9 +50,10 @@ app/
 │   └── widget.py          # Widget API endpoints
 ├── crud/                  # Database operations
 │   ├── base.py            # Base CRUD operations
-│   ├── async_base.py      # Async CRUD operations
 │   ├── bill_cache.py      # Bill caching operations
-│   └── bill_summary.py    # Bill summary operations
+│   ├── bill_summary.py    # Bill summary operations
+│   ├── bills.py           # Bill CRUD operations
+│   └── representatives.py # Representative CRUD operations
 ├── models/                # Database models
 │   ├── admin.py           # Admin user and API key models
 │   ├── bills.py           # Bill and cache models

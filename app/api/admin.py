@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.database import get_db
 from app.models.bills import BillSummary, BillCache
 from app.models.admin import AdminUser, APIKey
@@ -88,7 +87,7 @@ def get_current_admin_user(username: str = Depends(verify_token), db: Session = 
     return user
 
 @router.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
+def login(request: LoginRequest, db: Session = Depends(get_db)):
     """
     Admin login endpoint
     """
@@ -133,12 +132,12 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/stats", response_model=AdminStatsResponse)
-async def get_admin_stats(
+def get_admin_stats(
     db: Session = Depends(get_db),
     current_user: AdminUser = Depends(get_current_admin_user)
 ):
     """
-    Get admin dashboard statistics using async CRUD operations
+    Get admin dashboard statistics
     """
     try:
         # Use CRUD operations instead of direct queries
@@ -164,7 +163,7 @@ async def get_admin_stats(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/api-keys")
-async def get_api_keys(
+def get_api_keys(
     db: Session = Depends(get_db),
     current_user: AdminUser = Depends(get_current_admin_user)
 ):
@@ -189,12 +188,12 @@ async def get_api_keys(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/database")
-async def get_database_stats(
+def get_database_stats(
     db: Session = Depends(get_db),
     current_user: AdminUser = Depends(get_current_admin_user)
 ):
     """
-    Get database management statistics using async CRUD operations
+    Get database management statistics
     """
     try:
         # Use CRUD operations for better maintainability
@@ -230,13 +229,13 @@ async def get_database_stats(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/clear-cache")
-async def clear_cache(
+def clear_cache(
     request: dict,
     db: Session = Depends(get_db),
     current_user: AdminUser = Depends(get_current_admin_user)
 ):
     """
-    Clear cached data using async CRUD operations
+    Clear cached data
     """
     try:
         cache_type = request.get('cache_type')
@@ -267,7 +266,7 @@ async def clear_cache(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/summaries/search")
-async def search_summaries(
+def search_summaries(
     q: str = "",
     skip: int = 0,
     limit: int = 20,
@@ -276,7 +275,7 @@ async def search_summaries(
     current_user: AdminUser = Depends(get_current_admin_user)
 ):
     """
-    Search and filter bill summaries using async CRUD operations
+    Search and filter bill summaries
     """
     try:
         if q:
@@ -311,13 +310,13 @@ async def search_summaries(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.delete("/summaries/{bill_id}")
-async def delete_bill_summary(
+def delete_bill_summary(
     bill_id: str,
     db: Session = Depends(get_db),
     current_user: AdminUser = Depends(get_current_admin_user)
 ):
     """
-    Delete a specific bill summary using async CRUD operations
+    Delete a specific bill summary
     """
     try:
         deleted_summary = bill_summary_crud.delete_by_bill_id(db=db, bill_id=bill_id)
@@ -333,12 +332,12 @@ async def delete_bill_summary(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/cache/stats")
-async def get_cache_stats(
+def get_cache_stats(
     db: Session = Depends(get_db),
     current_user: AdminUser = Depends(get_current_admin_user)
 ):
     """
-    Get detailed cache statistics using async CRUD operations
+    Get detailed cache statistics
     """
     try:
         return bill_cache_crud.get_cache_stats(db)
@@ -348,13 +347,13 @@ async def get_cache_stats(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/cache/cleanup")
-async def cleanup_expired_cache(
+def cleanup_expired_cache(
     hours: int = 24,
     db: Session = Depends(get_db),
     current_user: AdminUser = Depends(get_current_admin_user)
 ):
     """
-    Clean up expired cache entries using async CRUD operations
+    Clean up expired cache entries
     """
     try:
         deleted_count = bill_cache_crud.delete_expired_cache(db=db, hours=hours)
@@ -369,7 +368,7 @@ async def cleanup_expired_cache(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/test-apis")
-async def test_apis(
+def test_apis(
     db: Session = Depends(get_db),
     current_user: AdminUser = Depends(get_current_admin_user)
 ):
@@ -430,7 +429,7 @@ async def test_apis(
     return results
 
 @router.post("/api-keys")
-async def create_or_update_api_key(
+def create_or_update_api_key(
     request: APIKeyRequest,
     db: Session = Depends(get_db),
     current_user: AdminUser = Depends(get_current_admin_user)
@@ -468,7 +467,7 @@ async def create_or_update_api_key(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.delete("/api-keys/{service_name}")
-async def delete_api_key(
+def delete_api_key(
     service_name: str,
     db: Session = Depends(get_db),
     current_user: AdminUser = Depends(get_current_admin_user)

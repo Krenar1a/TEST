@@ -12,7 +12,7 @@ from app.services.openstates_api import OpenStatesAPI
 from app.services.openai_service import OpenAIService
 from app.crud.bills import create_bill, get_bill, update_bill, clear_all_bills
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class BillScraperService:
     """Service to scrape and store bills"""
@@ -101,6 +101,48 @@ class BillScraperService:
             logging.error(f"Error in scrape_all_bills: {str(e)}")
             raise e
     
+    def scrape_recent_bills(self, days: int = 7) -> Dict:
+        """Scrape bills from the last N days only
+        
+        Args:
+            days: Number of days to look back (default: 7 for last week)
+        """
+        try:
+            db = SessionLocal()
+            cutoff_date = datetime.now() - timedelta(days=days)
+            
+            total_processed = 0
+            total_created = 0
+            total_updated = 0
+            total_errors = 0
+            
+            # Get current session bills
+            sessions_to_scrape = ["20252026"]  # Current session
+            
+            for session in sessions_to_scrape:
+                logging.info(f"Scraping recent bills for session: {session}")
+                session_result = self._scrape_session_bills_with_date_filter(db, session, cutoff_date)
+                
+                total_processed += session_result.get('processed', 0)
+                total_created += session_result.get('created', 0)
+                total_updated += session_result.get('updated', 0)
+                total_errors += session_result.get('errors', 0)
+            
+            db.close()
+            
+            return {
+                "processed": total_processed,
+                "created": total_created,
+                "updated": total_updated,
+                "errors": total_errors,
+                "days_back": days,
+                "cutoff_date": cutoff_date.isoformat()
+            }
+            
+        except Exception as e:
+            logging.error(f"Error in scrape_recent_bills: {str(e)}")
+            raise e
+    
     def _get_sessions_for_year(self, year: Optional[str]) -> List[str]:
         """Get session identifiers for the specified year(s)"""
         if year == "all":
@@ -155,7 +197,8 @@ class BillScraperService:
                 
                 for bill_data in bills:
                     try:
-                        result = self.process_single_bill(db, bill_data)
+                        # Skip AI generation during bulk scraping for performance
+                        result = self.process_single_bill(db, bill_data, generate_ai=False)
                         processed += 1
                         
                         if result == "created":
@@ -190,8 +233,153 @@ class BillScraperService:
                 "updated": 0,
                 "errors": 1
             }
+    
+    def _scrape_session_bills_with_date_filter(self, db: Session, session: str, cutoff_date: datetime) -> Dict:
+        """Scrape bills for a specific session with date filtering"""
+        try:
+            processed = 0
+            created = 0
+            updated = 0
+            errors = 0
+            
+            # Scrape bills in batches
+            page = 1
+            per_page = 20
+            
+            while True:
+                logging.info(f"Scraping recent bills page {page} for session {session}")
+                
+                # Get bills from API for specific session
+                bills_data = self.openstates_api.get_california_bills_by_session(
+                    session=session,
+                    page=page, 
+                    per_page=per_page
+                )
+                
+                if not bills_data or not bills_data.get('results'):
+                    logging.info(f"No more bills to process for session {session}")
+                    break
+                    
+                bills = bills_data.get('results', [])
+                recent_bills_found = False
+                
+                for bill_data in bills:
+                    try:
+                        # Check if bill is recent enough
+                        latest_action_date = bill_data.get('latest_action_date')
+                        if latest_action_date:
+                            bill_date = self.parse_date_safely(latest_action_date)
+                            if bill_date and bill_date >= cutoff_date:
+                                recent_bills_found = True
+                                # Skip AI generation during bulk scraping for performance
+                                result = self.process_single_bill(db, bill_data, generate_ai=False)
+                                processed += 1
+                                
+                                if result == "created":
+                                    created += 1
+                                elif result == "updated":
+                                    updated += 1
+                        else:
+                            # If no date info, include it to be safe
+                            recent_bills_found = True
+                            result = self.process_single_bill(db, bill_data, generate_ai=False)
+                            processed += 1
+                            
+                            if result == "created":
+                                created += 1
+                            elif result == "updated":
+                                updated += 1
+                            
+                    except Exception as e:
+                        errors += 1
+                        logging.error(f"Error processing bill: {str(e)}")
+                        continue
+                
+                # If no recent bills found on this page, and we're past page 1, we can stop
+                # as bills are typically ordered by date
+                if not recent_bills_found and page > 1:
+                    logging.info(f"No recent bills found on page {page}, stopping search")
+                    break
+                
+                page += 1
+                
+                # Limit to prevent infinite loops
+                if page > 100:  # Reduced limit for recent bills
+                    logging.warning(f"Reached page limit for recent bills in session {session}")
+                    break
+            
+            return {
+                "processed": processed,
+                "created": created,
+                "updated": updated,
+                "errors": errors
+            }
+            
+        except Exception as e:
+            logging.error(f"Error scraping recent bills for session {session}: {str(e)}")
+            return {
+                "processed": 0,
+                "created": 0,
+                "updated": 0,
+                "errors": 1
+            }
 
-    def process_single_bill(self, db: Session, bill_data: Dict) -> str:
+    def generate_ai_summary_for_bill(self, db: Session, bill_id: str) -> bool:
+        """Generate AI summary for a specific bill independently"""
+        try:
+            existing_bill = get_bill(db, bill_id)
+            if not existing_bill:
+                logging.error(f"Bill {bill_id} not found in database")
+                return False
+            
+            # Skip if already has AI summary
+            if existing_bill.summary and existing_bill.key_provisions:
+                logging.info(f"Bill {bill_id} already has AI summary")
+                return True
+            
+            # Prepare text for AI analysis
+            text_for_ai = []
+            if existing_bill.title:
+                text_for_ai.append(f"Title: {existing_bill.title}")
+            if existing_bill.latest_action_description:
+                text_for_ai.append(f"Latest Action: {existing_bill.latest_action_description}")
+            
+            full_text = "\n\n".join(text_for_ai)
+            
+            # Generate AI summary
+            ai_summary_data = self.openai_service.generate_bill_summary(
+                title=existing_bill.title or '',
+                bill_text=full_text,
+                bill_id=existing_bill.identifier or existing_bill.bill_id
+            )
+            
+            if ai_summary_data:
+                # Update bill with AI summary
+                update_data = {
+                    "summary": ai_summary_data.get('summary', ''),
+                    "key_provisions": ai_summary_data.get('key_provisions', []),
+                    "impact": ai_summary_data.get('impact', ''),
+                    "ai_analysis": {
+                        "title": ai_summary_data.get('title', ''),
+                        "summary": ai_summary_data.get('summary', ''),
+                        "key_provisions": ai_summary_data.get('key_provisions', []),
+                        "impact": ai_summary_data.get('impact', ''),
+                        "status": ai_summary_data.get('status', ''),
+                        "generated_at": datetime.now().isoformat()
+                    }
+                }
+                update_bill(db, bill_id, update_data)
+                logging.info(f"Successfully generated AI summary for {bill_id}")
+                return True
+            else:
+                logging.warning(f"AI summary generation failed for {bill_id}")
+                return False
+                
+        except Exception as e:
+            logging.error(f"Error generating AI summary for {bill_id}: {str(e)}")
+            return False
+
+    def process_single_bill(self, db: Session, bill_data: Dict, generate_ai: bool = True) -> str:
         """Process a single bill with comprehensive data extraction and AI analysis"""
         bill_id = bill_data.get('id')
         if not bill_id:
@@ -278,7 +466,7 @@ class BillScraperService:
         
         # Generate comprehensive AI summary if we don't have one or if this is a new bill
         ai_summary_data = {}
-        if not existing_bill or not existing_bill.summary:
+        if generate_ai and (not existing_bill or not existing_bill.summary):
             try:
                 logging.info(f"Generating AI summary for bill {bill_identifier} ({bill_id})")
                 ai_summary_data = self.openai_service.generate_bill_summary(
